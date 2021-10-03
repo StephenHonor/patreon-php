@@ -36,51 +36,128 @@ class API
 		$this->api_return_format = 'array';
 	}
 
-	public function getUser()
+	public function getUser($query = [])
     {
-		// Fetches details of the current token user.
-		return $this->get_data('identity?include=memberships&fields'.urlencode('[user]').'=email,first_name,full_name,image_url,last_name,thumb_url,url,vanity,is_email_verified&fields'.urlencode('[member]').'=currently_entitled_amount_cents,lifetime_support_cents,last_charge_status,patron_status,last_charge_date,pledge_relationship_start');
+        if (empty($query['include'])) {
+            $query['include'] = [
+                'memberships',
+            ];
+        }
+
+        if (empty($query['fields'])) {
+            $query['fields'] = [
+                'user' => [
+                    'email',
+                    'first_name',
+                    'full_name',
+                    'image_url',
+                    'last_name',
+                    'thumb_url',
+                    'url',
+                    'vanity',
+                    'is_email_verified'
+                ],
+                'member' => [
+                    'currently_entitled_amount_cents',
+                    'lifetime_support_cents',
+                    'last_charge_status',
+                    'patron_status',
+                    'last_charge_date',
+                    'pledge_relationship_start'
+                ],
+            ];
+        }
+
+        // Fetches details of the current token user.
+		return $this->get_data('identity', $query);
 	}
 
-	public function getCampaigns()
+	public function getCampaigns($query = [])
     {
+        if (empty($query['fields'])) {
+            $query['fields'] = [
+                'campaign' => [
+                    'creation_name',
+                ],
+            ];
+        }
+
 		// Fetches the list of campaigns of the current token user. Requires the current user to be creator of the campaign or requires a creator access token
-		return $this->get_data("campaigns");
+		return $this->get_data('campaigns', $query);
 	}
 
-	public function getCampaign($campaign_id)
+	public function getCampaign($campaign_id, $query = [])
     {
+        if (empty($query['include'])) {
+            $query['include'] = [
+                'benefits',
+                'creator',
+                'goals',
+                'tiers',
+            ];
+        }
+
+        if (empty($query['fields'])) {
+            $query['fields'] = [
+                'campaign' => [
+                    'creation_name',
+                    'vanity',
+                ],
+            ];
+        }
+
 		// Fetches details about a campaign - the membership tiers, benefits, creator and goals.  Requires the current user to be creator of the campaign or requires a creator access token
-		return $this->get_data("campaigns/{$campaign_id}?include=benefits,creator,goals,tiers");
+		return $this->get_data('campaigns/' . $campaign_id, $query);
 	}
 
-	public function getMember($member_id)
+	public function getMember($member_id, $query = [])
     {
+        if (empty($query['include'])) {
+            $query['include'] = [
+                'address',
+                'campaign',
+                'user',
+                'currently_entitled_tiers',
+            ];
+        }
+
 		// Fetches details about a member from a campaign. Member id can be acquired from fetch_page_of_members_from_campaign
 		// currently_entitled_tiers is the best way to get info on which membership tiers the user is entitled to.  Requires the current user to be creator of the campaign or requires a creator access token.
-		return $this->get_data("members/{$member_id}?include=address,campaign,user,currently_entitled_tiers");
+		return $this->get_data('members/' . $member_id, $query);
 	}
 
-	public function getCampaignMembers($campaign_id, $page_size, $cursor = null)
+	public function getCampaignMembers($campaign_id, $query = [], $page_size = 50, $cursor = null)
     {
+		$query['page'] = array_filter([
+		    'size' => $page_size,
+            'cursor' => $cursor
+        ]);
+
 		// Fetches a given page of members with page size and cursor point. Can be used to iterate through lists of members for a given campaign. Campaign id can be acquired from fetch_campaigns or from a saved campaign id variable.  Requires the current user to be creator of the campaign or requires a creator access token
-		$url = "campaigns/{$campaign_id}/members?page%5Bsize%5D={$page_size}";
-
-		if ($cursor != null) {
-
-		  $escaped_cursor = urlencode($cursor);
-		  $url = $url . "&page%5Bcursor%5D={$escaped_cursor}";
-
-		}
-
-		return $this->get_data($url);
-
+		return $this->get_data('campaigns/' . $campaign_id . '/members', $query);
 	}
 
-	public function get_data( $suffix, $args = array() )
+	public function parse_query($query = [])
+    {
+        $query_string = [];
+
+        if (! empty($query['include'])) {
+            $query_string[] = 'include=' . implode(',', $query['include']);
+        }
+
+        if (! empty($query['fields'])) {
+            foreach ($query['fields'] as $field => $list) {
+                $query_string[] = 'fields' . urlencode('[' . $field . ']') . '=' . implode(',', $list);
+            }
+        }
+
+        return ! empty($query_string) ? '?' . implode('&', $query_string) : '';
+    }
+
+	public function get_data( $suffix, $query = [], $args = [] )
     {
 		// Construct request:
-		$api_request = $this->api_endpoint . $suffix;
+		$api_request = $this->api_endpoint . $suffix . $this->parse_query($query);
 
 		// This identifies a unique request
 		$api_request_hash = md5( $this->access_token . $api_request );
