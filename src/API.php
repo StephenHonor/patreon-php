@@ -34,35 +34,34 @@ class API
 		// Set default return format - this can be changed by the app using the lib by setting it
 		// after initialization of this class
 		$this->api_return_format = 'array';
-
 	}
 
-	public function fetch_user()
+	public function getUser()
     {
 		// Fetches details of the current token user.
 		return $this->get_data('identity?include=memberships&fields'.urlencode('[user]').'=email,first_name,full_name,image_url,last_name,thumb_url,url,vanity,is_email_verified&fields'.urlencode('[member]').'=currently_entitled_amount_cents,lifetime_support_cents,last_charge_status,patron_status,last_charge_date,pledge_relationship_start');
 	}
 
-	public function fetch_campaigns()
+	public function getCampaigns()
     {
 		// Fetches the list of campaigns of the current token user. Requires the current user to be creator of the campaign or requires a creator access token
 		return $this->get_data("campaigns");
 	}
 
-	public function fetch_campaign_details($campaign_id)
+	public function getCampaign($campaign_id)
     {
 		// Fetches details about a campaign - the membership tiers, benefits, creator and goals.  Requires the current user to be creator of the campaign or requires a creator access token
 		return $this->get_data("campaigns/{$campaign_id}?include=benefits,creator,goals,tiers");
 	}
 
-	public function fetch_member_details($member_id)
+	public function getMember($member_id)
     {
 		// Fetches details about a member from a campaign. Member id can be acquired from fetch_page_of_members_from_campaign
 		// currently_entitled_tiers is the best way to get info on which membership tiers the user is entitled to.  Requires the current user to be creator of the campaign or requires a creator access token.
 		return $this->get_data("members/{$member_id}?include=address,campaign,user,currently_entitled_tiers");
 	}
 
-	public function fetch_page_of_members_from_campaign($campaign_id, $page_size, $cursor = null)
+	public function getCampaignMembers($campaign_id, $page_size, $cursor = null)
     {
 		// Fetches a given page of members with page size and cursor point. Can be used to iterate through lists of members for a given campaign. Campaign id can be acquired from fetch_campaigns or from a saved campaign id variable.  Requires the current user to be creator of the campaign or requires a creator access token
 		$url = "campaigns/{$campaign_id}/members?page%5Bsize%5D={$page_size}";
