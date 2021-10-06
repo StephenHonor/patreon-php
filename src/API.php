@@ -163,22 +163,38 @@ class API
                 if (! isset($includes[$include['type']])) {
                     $includes[$include['type']] = [];
                 }
+                $includes[$include['type']][$include['id']] = $include;
             }
 
-            foreach ($includes as $type => $items) {
+            foreach ($includes as $type => &$items) {
                 foreach ($items as $id => &$include) {
-                    $include = $this->process_relationships($include, $includes, true);
+                    if (! empty($include['relationships'])) {
+                        $include['relationships'] = $this->process_relationships($include['relationships'], $includes, true);
+                    }
                 }
             }
         } else {
             $includes = $included;
         }
 
-        dd($includes);
-
-        foreach ($data['relationships'] as $key => $relations) {
-
+        foreach ($data as $key => &$relations) {
+            if (! empty($relations['data'])) {
+                $relationships = [];
+                foreach ($relations['data'] as &$relation) {
+                    if (! isset($relation['type'])) {
+                        continue;
+                    }
+                    if (isset($includes[$relation['type']]) && isset($includes[$relation['type']][$relation['id']])) {
+                        $relationships[$relation['id']] = $includes[$relation['type']][$relation['id']];
+                    }
+                }
+                $relations = $relationships;
+            } else {
+                $relations = [];
+            }
         }
+
+        return $data;
     }
 
     public function get_data( $suffix, $query = [], $args = [] )
@@ -207,6 +223,10 @@ class API
         // Parse the return according to the format set by api_return_format variable
         if( $this->api_return_format == 'array' ) {
             $return = json_decode($json_string, true);
+            if (! empty($return['data']['relationships']) && ! empty($return['included'])) {
+                $return['data']['relationships'] = $this->process_relationships($return['data']['relationships'], $return['included']);
+                unset($return['included']);
+            }
         }
 
         if( $this->api_return_format == 'object' ) {
