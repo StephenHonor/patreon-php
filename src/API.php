@@ -160,7 +160,7 @@ class API
         return ! empty($query_string) ? '?' . implode('&', $query_string) : '';
     }
 
-    public function process_relationships($data, $included = [], $include_processed = false)
+    public function process_relationships($data, $included = [], $include_processed = false, $test = false)
     {
         $includes = [];
 
@@ -186,13 +186,17 @@ class API
         foreach ($data as $key => &$relations) {
             if (! empty($relations['data'])) {
                 $relationships = [];
-                foreach ($relations['data'] as &$relation) {
-                    if (! isset($relation['type'])) {
-                        continue;
+                if (isset($relations['data'][0])) {
+                    foreach ($relations['data'] as &$relation) {
+                        if (! isset($relation['type'])) {
+                            continue;
+                        }
+                        if (isset($includes[$relation['type']]) && isset($includes[$relation['type']][$relation['id']])) {
+                            $relationships[$relation['id']] = $includes[$relation['type']][$relation['id']];
+                        }
                     }
-                    if (isset($includes[$relation['type']]) && isset($includes[$relation['type']][$relation['id']])) {
-                        $relationships[$relation['id']] = $includes[$relation['type']][$relation['id']];
-                    }
+                } elseif (isset($includes[$relations['data']['type']]) && isset($includes[$relations['data']['type']][$relations['data']['id']])) {
+                    $relationships = $includes[$relations['data']['type']][$relations['data']['id']];
                 }
                 $relations = $relationships;
             } else {
@@ -229,7 +233,13 @@ class API
         // Parse the return according to the format set by api_return_format variable
         if( $this->api_return_format == 'array' ) {
             $return = json_decode($json_string, true);
-            if (! empty($return['data']['relationships']) && ! empty($return['included'])) {
+            if (isset($return['data'][0])) {
+                foreach ($return['data'] as &$data) {
+                    $data['relationships'] = $this->process_relationships($data['relationships'], $return['included']);
+                }
+                unset($return['included']);
+            }
+            else if (! empty($return['data']['relationships']) && ! empty($return['included'])) {
                 $return['data']['relationships'] = $this->process_relationships($return['data']['relationships'], $return['included']);
                 unset($return['included']);
             }
