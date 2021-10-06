@@ -126,11 +126,11 @@ class API
         return $this->get_data('members/' . $member_id, $query);
     }
 
-    public function getCampaignMembers($campaign_id, $query = [], $page_size = 50, $cursor = null)
+    public function getCampaignMembers($campaign_id, $query = [], $page_size = 50, $page_cursor = null)
     {
         $query['page'] = array_filter([
-            'size' => $page_size,
-            'cursor' => $cursor
+            'size'   => $page_size,
+            'cursor' => $page_cursor
         ]);
 
         // Fetches a given page of members with page size and cursor point. Can be used to iterate through lists of members for a given campaign. Campaign id can be acquired from fetch_campaigns or from a saved campaign id variable.  Requires the current user to be creator of the campaign or requires a creator access token
@@ -148,6 +148,12 @@ class API
         if (! empty($query['fields'])) {
             foreach ($query['fields'] as $field => $list) {
                 $query_string[] = 'fields' . urlencode('[' . $field . ']') . '=' . implode(',', $list);
+            }
+        }
+
+        if (! empty($query['page'])) {
+            foreach ($query['page'] as $field => $list) {
+                $query_string[] = 'page' . urlencode('[' . $field . ']') . '=' . implode(',', $list);
             }
         }
 
