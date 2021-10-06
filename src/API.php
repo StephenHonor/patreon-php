@@ -152,8 +152,8 @@ class API
         }
 
         if (! empty($query['page'])) {
-            foreach ($query['page'] as $field => $list) {
-                $query_string[] = 'page' . urlencode('[' . $field . ']') . '=' . implode(',', $list);
+            foreach ($query['page'] as $field => $value) {
+                $query_string[] = 'page' . urlencode('[' . $field . ']') . '=' . $value;
             }
         }
 
