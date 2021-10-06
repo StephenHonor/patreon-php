@@ -204,18 +204,7 @@ class API
         $info = curl_getinfo($ch);
         curl_close($ch);
 
-        // don't try to parse a 500-class error, as it's likely not JSON
-        if ( $info['http_code'] >= 500 ) {
-            return $this->add_to_request_cache($api_request_hash, $json_string);
-        }
-
-        // don't try to parse a 400-class error, as it's likely not JSON
-        if ( $info['http_code'] >= 400 ) {
-            return $this->add_to_request_cache($api_request_hash, $json_string);
-        }
-
         // Parse the return according to the format set by api_return_format variable
-
         if( $this->api_return_format == 'array' ) {
             $return = json_decode($json_string, true);
         }
