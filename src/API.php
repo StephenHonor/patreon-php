@@ -40,7 +40,10 @@ class API
     {
         if (empty($query['include'])) {
             $query['include'] = [
+                'campaign',
                 'memberships',
+                'memberships.campaign',
+                'memberships.currently_entitled_tiers',
             ];
         }
 
@@ -63,7 +66,7 @@ class API
                     'last_charge_status',
                     'patron_status',
                     'last_charge_date',
-                    'pledge_relationship_start'
+                    'pledge_relationship_start',
                 ],
             ];
         }
