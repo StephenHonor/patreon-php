@@ -140,6 +140,62 @@ class API
         return $this->get_data('campaigns/' . $campaign_id . '/members', $query);
     }
 
+    public function getWebhooks($query = [], $page_size = 50, $page_cursor = null)
+    {
+        $query['page'] = array_filter([
+            'size'   => $page_size,
+            'cursor' => $page_cursor
+        ]);
+
+        if (empty($query['fields'])) {
+            $query['fields'] = [
+                'webhook' => [
+                    'uri',
+                    'secret',
+                    'paused',
+                    'triggers',
+                ],
+            ];
+        }
+
+        return $this->get_data('webhooks', $query);
+    }
+
+    public function createWebhook($campaign_id, $uri, $triggers = [])
+    {
+        return $this->get_data('webhooks', [], [
+            'data' => [
+                'type' => 'webhook',
+                'attributes' => [
+                    'triggers' => $triggers,
+                    'uri'      => $uri,
+                ],
+                'relationships' => [
+                    'campaign' => [
+                        'data' => [
+                            'type' => 'campaign',
+                            'id' => $campaign_id,
+                        ]
+                    ]
+                ]
+            ]
+        ]);
+    }
+
+    public function updateWebhook($webhook_id, $uri, $triggers = [])
+    {
+        return $this->get_data('webhooks/' . $webhook_id, [], [
+            'data' => [
+                'id' => $webhook_id,
+                'type' => 'webhook',
+                'attributes' => [
+                    'triggers' => $triggers,
+                    'uri'      => $uri,
+                ],
+            ],
+        ]);
+    }
+
     public function parse_query($query = [])
     {
         $query_string = [];
@@ -210,35 +266,37 @@ class API
         return $data;
     }
 
-    public function get_data( $suffix, $query = [], $args = [] )
+    public function get_data($suffix, $query = [], $data = [], $headers = [], $args = [])
     {
         // Construct request:
         $api_request = $this->api_endpoint . $suffix . $this->parse_query($query);
 
         // This identifies a unique request
-        $api_request_hash = md5( $this->access_token . $api_request );
+        $api_request_hash = md5($this->access_token . $api_request . (empty($data) ? 'true' : 'false'));
 
         // Check if this request exists in the cache and if so, return it directly - avoids repeated requests to API in the same page run for same request string
 
-        if ( !isset( $args['skip_read_from_cache'] ) ) {
-            if ( isset( $this->request_cache[$api_request_hash] ) ) {
+        if (! isset($args['skip_read_from_cache']) && empty($data)) {
+            if (isset($this->request_cache[$api_request_hash])) {
                 return $this->request_cache[$api_request_hash];
             }
         }
 
         // Request is new - actually perform the request
 
-        $ch = $this->__create_ch($api_request);
+        $ch = $this->__create_ch($api_request, $data, $arg['request_type'] ?? null, $headers);
         $json_string = curl_exec($ch);
         $info = curl_getinfo($ch);
         curl_close($ch);
 
         // Parse the return according to the format set by api_return_format variable
-        if( $this->api_return_format == 'array' ) {
+        if ($this->api_return_format == 'array') {
             $return = json_decode($json_string, true);
             if (isset($return['data'][0])) {
                 foreach ($return['data'] as &$data) {
-                    $data['relationships'] = $this->process_relationships($data['relationships'], $return['included']);
+                    if (! empty($data['relationships']) && ! empty($return['included'])) {
+                        $data['relationships'] = $this->process_relationships($data['relationships'], $return['included']);
+                    }
                 }
                 unset($return['included']);
             }
@@ -246,13 +304,7 @@ class API
                 $return['data']['relationships'] = $this->process_relationships($return['data']['relationships'], $return['included']);
                 unset($return['included']);
             }
-        }
-
-        if( $this->api_return_format == 'object' ) {
-            $return = json_decode($json_string);
-        }
-
-        if( $this->api_return_format == 'json' ) {
+        } else {
             $return = $json_string;
         }
 
@@ -261,7 +313,7 @@ class API
 
     }
 
-    private function __create_ch($api_request)
+    private function __create_ch($api_request, $data = [], $type = null, $headers = [])
     {
         // This function creates a cURL handler for a given URL. In our case, this includes entire API request, with endpoint and parameters
 
@@ -269,21 +321,19 @@ class API
         curl_setopt($ch, CURLOPT_URL, $api_request);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
 
-        if ( $this->api_request_method != 'GET' AND $this->curl_postfields ) {
-            curl_setopt( $ch, CURLOPT_POSTFIELDS, $this->curl_postfields );
+        if (! empty($data)) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
         }
 
         // Set the cURL request method - works for all of them
+        if (! empty($type)) {
+            curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $type);
+        }
 
-        curl_setopt( $ch, CURLOPT_CUSTOMREQUEST, $this->api_request_method );
-
-        // Below line is for dev purposes - remove before release
-        // curl_setopt($ch, CURLOPT_HEADER, 1);
-
-        $headers = array(
+        $headers = array_merge($headers, [
             'Authorization: Bearer ' . $this->access_token,
             'User-Agent: Patreon-PHP, version 1.0.2, platform ' . php_uname('s') . '-' . php_uname( 'r' ),
-        );
+        ]);
 
         curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
         return $ch;
@@ -292,9 +342,7 @@ class API
 
     public function add_to_request_cache( $api_request_hash, $result )
     {
-
         // This function manages the array that is used as the cache for API requests. What it does is to accept a md5 hash of entire query string (GET, with url, endpoint and options and all) and then add it to the request cache array
-
         // If the cache array is larger than 50, snip the first item. This may be increased in future
 
         if ( !empty($this->request_cache) && (count( $this->request_cache ) > 50)  ) {
@@ -302,10 +350,6 @@ class API
         }
 
         // Add the new request and return it
-
         return $this->request_cache[$api_request_hash] = $result;
-
     }
-
-
 }
