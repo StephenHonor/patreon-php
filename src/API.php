@@ -182,16 +182,17 @@ class API
         ]);
     }
 
-    public function updateWebhook($webhook_id, $uri, $triggers = [])
+    public function updateWebhook($webhook_id, $uri, $triggers = [], $paused = null)
     {
         return $this->get_data('webhooks/' . $webhook_id, [], [
             'data' => [
                 'id' => $webhook_id,
                 'type' => 'webhook',
-                'attributes' => [
+                'attributes' => array_filter([
                     'triggers' => $triggers,
                     'uri'      => $uri,
-                ],
+                    'paused'   => $paused,
+                ]),
             ],
         ]);
     }
